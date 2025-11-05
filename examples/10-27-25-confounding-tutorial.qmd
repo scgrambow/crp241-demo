@@ -1,0 +1,966 @@
+---
+title: "Confounding in Regression Analysis"
+subtitle: "CRP 241 Tutorial"
+author: "Duke University Clinical Research Training Program"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: false
+    code-tools: true
+    code-line-numbers: true
+    theme: cosmo
+    embed-resources: true
+    number-sections: true
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+execute:
+  warning: false
+  message: false
+  echo: true
+---
+
+# Introduction {.unnumbered}
+
+::: {.callout-note icon=false}
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- **Identify** confounding variables in research studies
+- **Explain** how confounding distorts exposure-outcome relationships
+- **Apply** multiple linear regression to adjust for confounders
+- **Interpret** the difference between unadjusted and adjusted associations
+- **Understand** what regression is doing "behind the scenes" when it adjusts
+:::
+
+## What is Confounding?
+
+**Confounding** occurs when a third variable is associated with **both** the 
+exposure and the outcome, creating a spurious or distorted association between 
+them. Think of a confounder as creating a "false connection" or hiding the 
+"true connection" between two variables of interest.
+
+::: {.callout-important}
+## Key Concept: Confounding Criteria
+
+For a variable to be a confounder, it must meet **both** criteria:
+
+1. **Associated with the exposure** (e.g., different distribution across 
+   exposure groups)
+2. **Associated with the outcome** (e.g., correlated with or predictive of 
+   the outcome)
+:::
+
+## Why Regression Matters
+
+While t-tests can compare two groups, they **cannot** adjust for confounders. 
+Regression allows us to:
+
+- Account for multiple variables simultaneously
+- Estimate the "true" exposure-outcome relationship after removing confounding
+- Compare individuals who are similar on the confounder (like matching)
+
+::: {.callout-tip}
+## Clinical Analogy
+
+Adjusting for confounders is like comparing apples to apples. Without 
+adjustment, we might compare apples to oranges and draw incorrect conclusions.
+
+For example, comparing elderly patients to young patients without adjusting 
+for age differences could lead to biased conclusions about a treatment effect.
+:::
+
+## Quick Reference Guide
+
+| **Model Type** | **What It Shows** | **Can Adjust?** |
+|:---------------|:------------------|:----------------|
+| t-test | Difference between 2 groups | ❌ No |
+| Simple Linear Regression | Same as t-test for 2 groups | ❌ No |
+| Multiple Linear Regression | Adjusted differences | ✅ Yes |
+
+: Comparison of Statistical Methods {.striped .hover}
+
+---
+
+# Example 1: FEV1 and Genetic Variation
+
+## Study Background
+
+A study investigated whether a genetic variant affects lung function (FEV1) in 
+patients with COPD:
+
+- **Sample:** 100 patients randomly selected from a clinical practice
+- **Exposure:** Genotype (Wild Type vs. Mutant)
+- **Outcome:** FEV1 (forced expiratory volume in 1 second, measured in liters)
+- **Potential Confounder:** Sex at birth
+
+::: {.callout-note}
+## Clinical Question
+
+Does this genetic variant affect lung function? Or could any observed 
+difference be explained by sex differences between genotype groups (since 
+males and females have different baseline lung capacities)?
+:::
+
+## Data Dictionary
+
+| Variable | Description | Coding |
+|:---------|:------------|:-------|
+| `FEV1` | Forced expiratory volume in 1 second | Liters (continuous) |
+| `GENO` | Patient genotype | 0 = Wild Type, 1 = Mutant |
+| `SEX` | Sex at birth | 0 = Male, 1 = Female |
+
+: FEV1 Study Variables {.striped .hover}
+
+## Loading and Examining the Data
+
+First, we'll load the dataset and examine its structure:
+
+```{r load-fev1-data}
+# Load the FEV1 genotype dataset
+load(url("https://www.duke.edu/~sgrambow/crp241data/fev1_geno.RData"))
+
+# Examine the structure - shows variable types and first few values
+str(fgdata)
+```
+
+::: {.callout-tip}
+## What to Look For
+
+The `str()` output shows:
+
+- 100 observations (patients)
+- 3 variables (FEV1, GENO, SEX)
+- Variable types (numeric or integer)
+- Coding values (e.g., 0s and 1s for categorical variables)
+:::
+
+Let's get summary statistics for all variables:
+
+```{r summary-fev1-data}
+# Get summary statistics - shows min, quartiles, mean, median, max
+summary(fgdata)
+```
+
+::: {.callout-note}
+## Interpreting the Summary
+
+- **FEV1:** Range and distribution of lung function values
+- **GENO & SEX:** The mean tells you the proportion coded as 1
+  - Example: mean = 0.5 indicates 50% mutant (or 50% female)
+:::
+
+## Creating Labeled Variables
+
+Numeric codes (0/1) work for analysis but are hard to interpret. Let's create 
+labeled versions:
+
+```{r create-labels}
+# Create labeled versions for easier interpretation in tables and plots
+fgdata$fSEX <- factor(fgdata$SEX, labels = c('Male', 'Female'))
+fgdata$fGENO <- factor(fgdata$GENO, labels = c('Wild Type', 'Mutant'))
+
+# Verify the structure with new factor variables
+str(fgdata)
+```
+
+Let's verify the labels match the numeric codes:
+
+```{r verify-labels}
+# Cross-tabulation to verify Sex labels (rows) match numeric codes (columns)
+table(fgdata$fSEX, fgdata$SEX)
+
+# Cross-tabulation to verify Genotype labels match numeric codes
+table(fgdata$fGENO, fgdata$GENO)
+```
+
+## Checking for Confounding: Criterion 1
+
+::: {.callout-important}
+## Criterion 1: Is sex associated with genotype?
+
+If the distribution of males and females differs between genotype groups, then 
+sex is associated with genotype (the exposure).
+:::
+
+```{r sex-geno-association}
+# Cross-tabulation of sex by genotype (counts)
+table(fgdata$fSEX, fgdata$fGENO)
+
+# Convert to proportions within each genotype group
+prop.table(table(fgdata$fSEX, fgdata$fGENO), 2)
+```
+
+::: {.callout-note}
+## Interpretation
+
+Compare the proportion of females in Wild Type vs. Mutant groups:
+
+- If proportions are similar (e.g., ~50% female in both), sex is **NOT** 
+  associated with genotype
+- If proportions differ substantially, sex **IS** associated with genotype
+
+**Example:** If we see 38% female in Wild Type vs. 66% female in Mutant, this 
+suggests sex is associated with genotype ✓ **Criterion 1 met**
+:::
+
+## Checking for Confounding: Criterion 2
+
+::: {.callout-important}
+## Criterion 2: Is sex associated with FEV1?
+
+If FEV1 values differ between males and females, then sex is associated with 
+the outcome.
+:::
+
+Let's visualize FEV1 distribution by sex:
+
+```{r fev1-sex-boxplot, fig.width=8, fig.height=6}
+# Create enhanced boxplot with individual data points
+boxplot(fgdata$FEV1 ~ fgdata$fSEX,
+        main = 'FEV1 by Sex',
+        ylab = 'FEV1 Level (liters)',
+        xlab = 'Sex',
+        col = c('sienna', 'lightblue'),
+        range = 0)
+
+# Overlay individual patient data points (jittered to avoid overlap)
+stripchart(fgdata$FEV1 ~ fgdata$fSEX, 
+           method = "jitter", 
+           pch = 16,
+           vertical = TRUE, 
+           add = TRUE)
+
+# Calculate and overlay mean values
+males <- subset(fgdata, fSEX == 'Male')
+females <- subset(fgdata, fSEX == 'Female')
+sex.means <- c(mean(males$FEV1), mean(females$FEV1))
+
+points(sex.means, cex = 1.7, pch = 16, col = "dark orange")
+```
+
+::: {.callout-note}
+## Interpretation
+
+Look at the boxplot:
+
+- Are the boxes clearly separated or do they overlap substantially?
+- Are the mean values (large orange dots) noticeably different?
+- Clinical context: Males typically have larger lung capacity than females
+
+If FEV1 differs between males and females, then sex **IS** associated with 
+FEV1 ✓ **Criterion 2 met**
+
+**Conclusion:** If BOTH criteria are met, sex is likely a confounder!
+:::
+
+## Analysis 1: Two-Sample t-Test (Unadjusted)
+
+Let's first compare FEV1 between genotypes using a traditional t-test. This 
+gives us the **unadjusted (crude)** association, which does **NOT** account 
+for sex differences.
+
+```{r prepare-genotype-subsets}
+# Create genotype subsets for calculating means
+wild <- subset(fgdata, fGENO == 'Wild Type')
+mutant <- subset(fgdata, fGENO == 'Mutant')
+
+mean.wild <- mean(wild$FEV1)
+mean.mutant <- mean(mutant$FEV1)
+```
+
+```{r t-test-unadjusted}
+# Two-sample t-test with equal variances
+t.test(fgdata$FEV1 ~ fgdata$GENO, var.equal = TRUE)
+
+# Calculate difference in means manually
+mean.wild - mean.mutant
+```
+
+::: {.callout-note}
+## Interpreting the t-Test
+
+Look for:
+
+- **Mean in each group:** Wild Type vs. Mutant
+- **Difference in means:** How much higher/lower is one group?
+- **95% confidence interval:** Uncertainty around the difference
+- **p-value:** Is the difference statistically significant (p < 0.05)?
+
+**Note:** This is the unadjusted difference - it may be confounded by sex!
+:::
+
+## Analysis 2: Simple Linear Regression (Unadjusted)
+
+Now let's analyze the same comparison using simple linear regression. This 
+demonstrates that **t-tests and simple linear regression are equivalent** when 
+comparing two groups!
+
+```{r slr-unadjusted}
+# Fit simple linear regression: FEV1 ~ GENO
+ufit <- lm(FEV1 ~ GENO, data = fgdata)
+
+# Display regression results
+summary(ufit)
+```
+
+```{r slr-confint}
+# Calculate 95% confidence intervals for coefficients
+confint(ufit)
+```
+
+```{r slr-anova}
+# ANOVA table - tests overall model significance
+summary(aov(ufit))
+```
+
+```{r compare-direction}
+# The regression coefficient has opposite sign from t-test
+# because it compares Mutant (1) to Wild Type (0)
+mean.mutant - mean.wild
+```
+
+::: {.callout-tip}
+## KEY TEACHING POINT: t-Test = Simple Linear Regression
+
+The slope coefficient from regression equals the difference in means from the 
+t-test (just with opposite sign due to comparison direction).
+
+**Regression advantage:** We can extend regression to adjust for confounders, 
+but we **cannot** do this with a t-test!
+:::
+
+::: {.callout-note}
+## Interpreting Regression Output
+
+Key values to examine:
+
+- **Intercept:** Mean FEV1 for Wild Type (GENO = 0)
+- **Slope (GENO):** Change in mean FEV1 for Mutant vs. Wild Type
+  - Example: -0.417 means Mutants have 0.417 liters lower FEV1
+- **p-value for GENO:** Is genotype significantly associated with FEV1?
+- **R-squared:** Proportion of FEV1 variation explained by genotype
+- **95% CI:** Uncertainty around the slope estimate
+:::
+
+## Analysis 3: Multiple Linear Regression (Adjusted)
+
+Now for the key analysis: we'll **adjust for sex** by including it in the 
+regression model alongside genotype. This controls for sex differences and 
+reveals the "true" genotype effect.
+
+::: {.callout-important}
+## Critical Point
+
+We **CANNOT** do this adjustment with a t-test. This is why multiple linear 
+regression is so powerful for observational research!
+:::
+
+```{r mlr-adjusted}
+# Fit multiple linear regression: FEV1 ~ GENO + SEX
+afit <- lm(FEV1 ~ GENO + SEX, data = fgdata)
+
+# Display adjusted regression results
+summary(afit)
+```
+
+```{r mlr-confint}
+# 95% confidence intervals for all coefficients
+confint(afit)
+```
+
+```{r mlr-anova}
+# ANOVA table showing contribution of each variable
+summary(aov(afit))
+```
+
+::: {.callout-note}
+## Interpreting the Adjusted Model
+
+Compare the **GENO coefficient** in the adjusted model to the unadjusted model:
+
+- **Unadjusted (ufit):** Effect without considering sex
+- **Adjusted (afit):** Effect after accounting for sex differences
+
+**Key questions:**
+
+1. Did the coefficient change? By how much?
+2. Did the p-value change?
+3. Which estimate is more trustworthy (adjusted or unadjusted)?
+
+**Interpretation:**
+
+- **Intercept:** Mean FEV1 for Wild Type males (GENO=0, SEX=0)
+- **GENO coefficient:** Difference in FEV1 for Mutant vs. Wild Type, 
+  **holding sex constant** (this is the adjusted effect!)
+- **SEX coefficient:** Difference in FEV1 for females vs. males, 
+  holding genotype constant
+:::
+
+::: {.callout-tip}
+## Clinical Interpretation
+
+If the GENO coefficient changed substantially after adjustment:
+
+- Sex was confounding the genotype-FEV1 relationship
+- The adjusted coefficient is the "true" effect, removing distortion caused by 
+  sex differences between genotype groups
+- We're now comparing males to males and females to females (effectively)
+:::
+
+## Understanding Adjustment: Stratified Analysis
+
+What is regression actually doing when it "adjusts"? Let's look behind the 
+scenes by manually calculating the genotype effect within each sex group.
+
+### Analysis Within Females Only
+
+```{r stratified-females}
+# Create subsets by genotype within females
+females.mutant <- subset(females, fGENO == 'Mutant')
+females.wild <- subset(females, fGENO == 'Wild Type')
+
+# Calculate means
+mean.females.mutant <- mean(females.mutant$FEV1)
+mean.females.wild <- mean(females.wild$FEV1)
+
+# Display means
+cat("Mean FEV1 for Mutant females:", mean.females.mutant, "\n")
+cat("Mean FEV1 for Wild Type females:", mean.females.wild, "\n")
+
+# Calculate difference (genotype effect among females only)
+mean.females.mutant - mean.females.wild
+```
+
+::: {.callout-note}
+This difference represents the genotype effect **among females only**, free 
+from confounding by sex (since we're only looking at one sex).
+:::
+
+### Analysis Within Males Only
+
+```{r stratified-males}
+# Create subsets by genotype within males
+males.mutant <- subset(males, fGENO == 'Mutant')
+males.wild <- subset(males, fGENO == 'Wild Type')
+
+# Calculate means
+mean.males.mutant <- mean(males.mutant$FEV1)
+mean.males.wild <- mean(males.wild$FEV1)
+
+# Display means
+cat("Mean FEV1 for Mutant males:", mean.males.mutant, "\n")
+cat("Mean FEV1 for Wild Type males:", mean.males.wild, "\n")
+
+# Calculate difference (genotype effect among males only)
+mean.males.mutant - mean.males.wild
+```
+
+::: {.callout-note}
+This difference represents the genotype effect **among males only**, free from 
+confounding by sex.
+:::
+
+### The Magic of Adjustment
+
+```{r average-strata}
+# Calculate the average of sex-specific differences
+avg_effect <- ((mean.females.mutant - mean.females.wild) +
+                (mean.males.mutant - mean.males.wild)) / 2
+
+cat("Average of sex-specific effects:", avg_effect, "\n")
+cat("Compare to adjusted GENO coefficient from afit\n")
+```
+
+::: {.callout-important}
+## KEY INSIGHT: How Regression "Adjusts"
+
+When regression adjusts for sex, it essentially:
+
+1. Calculates the genotype effect within each sex group (as we just did)
+2. Averages these sex-specific effects (weighted by sample size)
+3. Reports this average as the adjusted coefficient
+
+The result should be very similar to what we calculated manually! This is what 
+"adjustment" means - comparing within strata and averaging the results.
+:::
+
+### Regression Within Strata
+
+We can also fit separate regression models within each sex group:
+
+```{r regression-females}
+# Regression within females only
+ffit <- lm(FEV1 ~ GENO, data = females)
+summary(ffit)
+confint(ffit)
+```
+
+::: {.callout-note}
+The slope for GENO should match our manual calculation: 
+`mean.females.mutant - mean.females.wild`
+:::
+
+```{r regression-males}
+# Regression within males only
+mfit <- lm(FEV1 ~ GENO, data = males)
+summary(mfit)
+confint(mfit)
+```
+
+::: {.callout-note}
+The slope for GENO should match our manual calculation: 
+`mean.males.mutant - mean.males.wild`
+:::
+
+::: {.callout-tip}
+## KEY TEACHING POINT
+
+The sex-specific slopes from these stratified regressions (ffit and mfit) are 
+averaged (conceptually) in the adjusted multiple regression model (afit).
+
+This is how regression adjusts for confounders: it estimates the 
+exposure-outcome relationship within levels of the confounder, then combines 
+them into a single adjusted estimate.
+:::
+
+---
+
+# Example 2: Lead Exposure and Neurological Function
+
+## Study Background
+
+A study examined the effects of lead exposure on children's neurological 
+development:
+
+- **Sample:** 102 children living near a lead smelter in El Paso, Texas
+- **Exposure:** Blood lead levels (Control: <40 μg/ml; Exposed: ≥40 μg/ml)
+- **Outcome:** Finger-wrist tapping test (measure of fine motor coordination)
+- **Potential Confounder:** Age in years
+
+::: {.callout-note}
+## Clinical Question
+
+Does lead exposure affect neurological function (tapping test score)? Or could 
+any observed difference be explained by age differences between groups (since 
+neurological development improves with age)?
+:::
+
+## Data Dictionary
+
+| Variable | Description | Coding |
+|:---------|:------------|:-------|
+| `maxfwt` | Finger-wrist tapping test score | Number of taps in 10 seconds (continuous); higher = better |
+| `Group` | Exposure group | 1 = Control, 2 = Exposed |
+| `ageyrs` | Age of child | Years (decimal format, e.g., 8.5) |
+
+: Lead Study Variables {.striped .hover}
+
+## Loading and Cleaning the Data
+
+```{r load-lead-data}
+# Load the lead exposure dataset
+load(url("https://www.duke.edu/~sgrambow/crp241data/lead.RData"))
+```
+
+::: {.callout-warning}
+## Important Data Cleaning Step
+
+In this dataset, missing values for `maxfwt` were coded as 99 (a common 
+convention in older studies). We need to convert these to `NA` so R recognizes 
+them as missing and handles them correctly.
+
+**Why this matters:** If we leave 99 as a number, R will treat it as a real 
+score (99 taps is impossibly high!), severely biasing our results.
+:::
+
+```{r clean-missing}
+# Convert 99 to NA for missing tapping test scores
+lead$maxfwt[lead$maxfwt == 99] <- NA
+
+# Check how many values were converted
+sum(is.na(lead$maxfwt))
+```
+
+## Question 1: Is Age a Confounder?
+
+For age to be a confounder, it must be associated with **both** the exposure 
+(Group) and outcome (maxfwt).
+
+### Criterion 1: Age Associated with Outcome?
+
+Let's examine whether tapping test scores vary with age:
+
+```{r age-outcome-scatter, fig.width=8, fig.height=6}
+# Scatterplot of age vs. tapping score
+plot(lead$ageyrs, lead$maxfwt,
+     main = "Tapping Test Score vs. Age",
+     xlab = "Age (years)",
+     ylab = "Tapping Test Score (taps in 10 seconds)",
+     pch = 19,
+     col = "steelblue")
+```
+
+```{r age-outcome-correlation}
+# Pearson's correlation test
+cor.test(lead$ageyrs, lead$maxfwt)
+```
+
+::: {.callout-note}
+## Interpreting the Correlation
+
+Look for:
+
+- **Correlation coefficient (r):** Strength and direction
+  - Close to 0: weak relationship
+  - Close to ±1: strong relationship
+  - Positive: older children score higher
+  - Negative: older children score lower
+- **95% confidence interval:** Uncertainty around r
+- **p-value:** Is the correlation statistically significant?
+
+If p < 0.05 and r ≠ 0, age **IS** associated with maxfwt ✓ **Criterion 1 met**
+:::
+
+### Criterion 2: Age Associated with Exposure?
+
+Now let's check if exposed and control children differ in age:
+
+```{r age-exposure-boxplot, fig.width=8, fig.height=6}
+# Boxplot of age by exposure group
+boxplot(lead$ageyrs ~ lead$Group,
+        main = "Age Distribution by Exposure Group",
+        xlab = "Group (1=Control, 2=Exposed)",
+        ylab = "Age (years)",
+        col = c("lightgreen", "coral"))
+```
+
+```{r age-exposure-summary}
+# Summary statistics by group
+by(lead$ageyrs, lead$Group, summary)
+```
+
+```{r age-exposure-ttest}
+# Two-sample t-test
+t.test(lead$ageyrs ~ lead$Group, var.equal = TRUE)
+
+# Calculate difference in means
+9.327 - 8.270
+```
+
+```{r age-exposure-regression}
+# Alternative: Simple linear regression (equivalent to t-test)
+summary(lm(lead$ageyrs ~ lead$Group, data = lead))
+```
+
+::: {.callout-note}
+## Interpretation
+
+Look at the results:
+
+- **Mean age by group:** Control ~9.3 years, Exposed ~8.3 years
+- **Difference:** Control children are about 1 year older
+- **p-value:** Is this difference statistically significant?
+
+If mean ages differ significantly (p < 0.05), age **IS** associated with 
+exposure group ✓ **Criterion 2 met**
+
+**Conclusion:** If BOTH criteria are met, age is likely a confounder!
+:::
+
+## Question 2: Unadjusted Association
+
+Let's estimate the crude (unadjusted) association between lead exposure and 
+tapping test score. This does **NOT** account for age differences.
+
+```{r lead-unadjusted}
+# Simple linear regression: maxfwt ~ Group
+ufit <- lm(maxfwt ~ Group, data = lead)
+summary(ufit)
+```
+
+::: {.callout-note}
+## Interpretation
+
+Key values:
+
+- **Coefficient for Group:** Difference in mean tapping score between exposed 
+  and control children
+  - Negative value: Exposed children score lower
+  - Example: -7.009 means exposed children have 7 fewer taps on average
+- **p-value:** Is this difference statistically significant?
+- **R-squared:** Proportion of variation in tapping scores explained by 
+  exposure alone
+
+**Remember:** This is unadjusted - it may be biased by age confounding!
+:::
+
+## Question 3: Adjusted Association
+
+Now let's adjust for age to get the "true" association:
+
+```{r lead-adjusted}
+# Multiple linear regression: maxfwt ~ Group + ageyrs
+afit <- lm(maxfwt ~ Group + ageyrs, data = lead)
+summary(afit)
+```
+
+::: {.callout-note}
+## Interpretation
+
+Compare the **Group coefficient** in adjusted vs. unadjusted models:
+
+- **Unadjusted:** ~-7.009 taps
+- **Adjusted:** ~-4.85 taps (or whatever your data shows)
+
+Key questions:
+
+1. Did the coefficient change substantially?
+2. Is it still statistically significant?
+3. What does this tell us about confounding?
+
+**Interpretation of coefficients:**
+
+- **Group (adjusted):** Difference in tapping score between exposed vs. 
+  control children **of the same age**
+- **ageyrs:** Change in tapping score per 1-year increase in age, holding 
+  exposure constant (useful for understanding the confounder's effect)
+:::
+
+## Question 4: Impact of Adjustment
+
+Let's create a comparison table to see the impact of adjusting for age:
+
+```{r comparison-table}
+# Extract coefficients for comparison
+unadj_coef <- coef(summary(ufit))["Group", "Estimate"]
+unadj_pval <- coef(summary(ufit))["Group", "Pr(>|t|)"]
+
+adj_coef <- coef(summary(afit))["Group", "Estimate"]
+adj_pval <- coef(summary(afit))["Group", "Pr(>|t|)"]
+
+# Create comparison data frame
+comparison <- data.frame(
+  Model = c("Unadjusted", "Adjusted for Age"),
+  Coefficient = c(unadj_coef, adj_coef),
+  P_value = c(unadj_pval, adj_pval),
+  Change = c("-", 
+             sprintf("%.1f%%", abs((adj_coef - unadj_coef) / unadj_coef * 100)))
+)
+
+knitr::kable(comparison, 
+             digits = 3,
+             col.names = c("Model", "Group Coefficient", "p-value", 
+                           "% Change from Unadjusted"),
+             caption = "Impact of Adjusting for Age Confounding")
+```
+
+::: {.callout-important}
+## What Does This Mean?
+
+**Observed pattern:** The coefficient moved toward zero (was attenuated) after 
+adjusting for age.
+
+**Explanation:**
+
+1. The unadjusted model **overestimated** the impact of lead exposure
+2. Control children were ~1 year older than exposed children on average
+3. Older children naturally perform better on the tapping test (developmental 
+   maturation)
+4. Part of the observed difference was due to **age**, not lead exposure
+5. After adjusting for age (comparing children of the **same age**), the true 
+   effect of lead is smaller
+
+**Clinical interpretation:**
+
+Age was a confounder that **exaggerated** the apparent effect of lead exposure. 
+The adjusted analysis gives a more accurate estimate of lead's impact on 
+neurological function. However, even after adjustment, exposed children still 
+perform worse, suggesting a **real adverse effect** of lead exposure on 
+neurological development.
+:::
+
+## Question 5: Missing Data Handling
+
+::: {.callout-tip}
+## How R Handles Missing Values
+
+After we converted 99 to `NA`, R automatically uses **complete case analysis** 
+(also called "listwise deletion"):
+
+- Any observation missing ANY variable in the model is **excluded** from the 
+  analysis
+- Example: A child missing `maxfwt` is dropped from both unadjusted and 
+  adjusted models
+- Example: A child missing `ageyrs` is included in the unadjusted model (which 
+  doesn't use age) but **excluded** from the adjusted model
+:::
+
+```{r check-missing}
+# Check how many observations were used in each model
+cat("Unadjusted model N:", nobs(ufit), "\n")
+cat("Adjusted model N:", nobs(afit), "\n")
+cat("Difference:", nobs(ufit) - nobs(afit), 
+    "observations excluded when age added\n")
+```
+
+::: {.callout-warning}
+## Why This Matters
+
+**Complete case analysis is:**
+
+- ✅ Simple and the default in most software
+- ✅ Unbiased IF data are "missing completely at random" (MCAR)
+- ⚠️ Potentially biased if missingness is "informative"
+
+**Example of informative missingness:**
+
+If children with very poor neurological function were less able to complete 
+the tapping test (resulting in missing values), excluding them would 
+**underestimate** the true impact of lead exposure.
+
+**Best practices:**
+
+1. Examine patterns of missing data before analysis
+2. Report the number of observations excluded
+3. Consider: Why might data be missing? Is missingness related to variables in 
+   the analysis?
+4. For substantial missingness, consider advanced methods (e.g., multiple 
+   imputation)
+:::
+
+---
+
+# Summary and Key Takeaways {.unnumbered}
+
+## Confounding Basics
+
+::: {.callout-note icon=false}
+## Key Points
+
+- A **confounder** is associated with both the exposure and the outcome
+- Confounding **distorts** the true relationship between exposure and outcome
+- Always check: Is the potential confounder associated with **both**?
+- Use clinical and biological knowledge to identify plausible confounders
+:::
+
+## Why Regression is Powerful
+
+::: {.callout-note icon=false}
+## Key Points
+
+- **t-tests** can compare two groups but cannot adjust for confounders
+- **Simple linear regression** gives the same answer as a t-test for two 
+  groups
+- **Multiple linear regression** can adjust for confounders by including them 
+  alongside the exposure
+- This is a major advantage for observational research!
+:::
+
+## How Adjustment Works
+
+::: {.callout-note icon=false}
+## Key Points
+
+- "Adjusting" means estimating the exposure effect **within levels** of the 
+  confounder
+- Example: Comparing males to males and females to females separately
+- Regression **averages** these stratum-specific effects
+- The adjusted coefficient is the "true" effect, free from confounding
+:::
+
+## Interpreting Results
+
+::: {.callout-note icon=false}
+## Key Points
+
+**Unadjusted model:**
+
+- Shows crude association
+- May be biased by confounding
+- Easier to calculate and communicate
+
+**Adjusted model:**
+
+- Accounts for confounders
+- More accurate estimate
+- Essential for causal inference in observational studies
+
+**Compare them:** Did adjustment change the estimate substantially? If yes, 
+confounding was present and adjustment was necessary!
+:::
+
+## Clinical Examples Recap
+
+::: {.callout-note icon=false}
+## Example 1: FEV1 and Genetic Variation
+
+**Confounder:** Sex
+
+- Sex was associated with genotype (different % females in each group)
+- Sex was associated with FEV1 (males vs. females have different lung 
+  capacity)
+- Adjustment revealed the "true" genotype effect after accounting for sex 
+  differences
+
+## Example 2: Lead Exposure and Neurological Function
+
+**Confounder:** Age
+
+- Age was associated with exposure group (control children were older)
+- Age was associated with tapping scores (older children score higher)
+- Adjustment attenuated the lead effect, showing part of the crude association 
+  was due to age, not lead alone
+:::
+
+## Next Steps {.unnumbered}
+
+::: {.callout-tip icon=false}
+## Practice These Skills
+
+1. **Identify** potential confounders in your own research using clinical 
+   knowledge
+2. **Always compare** unadjusted and adjusted models to assess confounding
+3. **Create** stratified analyses to understand how adjustment works
+4. **Think carefully** about which variables to adjust for:
+   - Must be associated with both exposure and outcome
+   - Should not be on the causal pathway (mediators)
+   - Consider directed acyclic graphs (DAGs) for complex situations
+5. **Report** both unadjusted and adjusted estimates in your papers
+6. **Consider** missing data patterns and their potential impact
+:::
+
+---
+
+# Additional Resources {.unnumbered}
+
+## Recommended Reading
+
+- Rothman, K. J., Greenland, S., & Lash, T. L. (2008). *Modern Epidemiology* 
+  (3rd ed.). Chapter on confounding.
+- Hernán, M. A., & Robins, J. M. (2020). *Causal Inference: What If*. Free at 
+  <https://www.hsph.harvard.edu/miguel-hernan/causal-inference-book/>
+
+## R Resources
+
+- R for Data Science: <https://r4ds.had.co.nz/>
+- Statistical Modeling with R: Multiple regression chapters
+- Quarto documentation: <https://quarto.org/>
+
+---
+
+::: {.callout-note icon=false}
+## Session Information
+
+This document was created using Quarto and R. Here's the session information 
+for reproducibility:
+
+```{r session-info}
+sessionInfo()
+```
+:::
