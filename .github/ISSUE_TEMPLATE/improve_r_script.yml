@@ -1,0 +1,53 @@
+name: Improve R script and create tutorial
+description: Request a physician-friendly improved R script and a matching Quarto tutorial.
+labels: [enhancement, documentation]
+title: "Improve R script: <file>"
+body:
+  - type: input
+    id: script_path
+    attributes:
+      label: Path to the original R script
+      description: Relative path within the repo (e.g., examples/10-27-25-confounding-RScript-original.R)
+      placeholder: examples/<file>-original.R
+    validations:
+      required: true
+  - type: textarea
+    id: data_context
+    attributes:
+      label: Data context (optional)
+      description: Source, variables, units, any privacy constraints that should be mentioned.
+      placeholder: e.g., CSV from course materials; variables include age (years), treatment (A/B), outcome (0/1)
+  - type: checkboxes
+    id: outputs
+    attributes:
+      label: Outputs to generate
+      options:
+        - label: Improved R script with ≤80-char comments, section headers, and clinical/statistical interpretations
+          required: true
+        - label: Quarto tutorial (*.qmd) with TOC, numbered sections, and clinical notes
+          required: true
+  - type: textarea
+    id: additional_notes
+    attributes:
+      label: Additional notes for Copilot (optional)
+      description: Any constraints, required packages, or house style clarifications.
+  - type: markdown
+    attributes:
+      value: |
+        Suggested Copilot prompt (paste into Copilot Chat after creating this issue):
+        
+        ---
+        You are helping physicians in an intro statistics course. Take the R script at:
+        <PASTE script path from this issue>
+        
+        1) Create a new, well-documented version for physicians without changing code logic.
+           - ≤80-char comments, numbered sections, clinical and statistical interpretations.
+           - Use base R + readr/dplyr/ggplot2/stats; avoid advanced patterns.
+           - Save next to the original, dropping any -original suffix.
+        
+        2) Create a Quarto tutorial that mirrors the improved script with TOC and clinical notes.
+           - YAML: title, toc: true, number-sections: true, code-fold: show, format: html.
+           - Explanation → code → stat interpretation → clinical takeaway; captions for plots.
+           - Save as <ROOT>-tutorial.qmd next to the script.
+        
+        Validate both outputs render/run and confirm output paths.

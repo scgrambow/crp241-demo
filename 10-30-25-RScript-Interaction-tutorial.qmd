@@ -1,0 +1,644 @@
+---
+title: "Interaction (Effect Modification) in Regression"
+subtitle: "CRP 241 Tutorial"
+author: "Duke University Clinical Research Training Program"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: false
+    code-tools: true
+    code-line-numbers: true
+    theme: cosmo
+    embed-resources: true
+    number-sections: true
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+    pdf-engine: xelatex
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Introduction {.unnumbered}
+
+::: {.callout-note icon=false}
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- **Define** interaction (effect modification) in regression
+- **Recognize** when an effect differs across subgroups
+- **Use** regression with interaction terms to test for effect modification
+- **Interpret** stratified analyses and visualizations
+- **Apply** clinical reasoning to determine if interactions are meaningful
+:::
+
+## What is Interaction (Effect Modification)?
+
+**Interaction** (also called **effect modification**) occurs when the effect of
+one variable on an outcome depends on the level of another variable.
+
+::: {.callout-important}
+## Key Concept
+
+In simple terms: "Does the relationship between X and Y differ across levels
+of Z?"
+
+**Example:** Does the effect of smoking on lung function differ by age?
+
+- If younger patients show a small smoking effect but older patients show a
+  large smoking effect, then **age modifies** the smoking effect.
+- We say there is **interaction** between smoking and age.
+:::
+
+## Why Interaction Matters Clinically
+
+::: {.callout-tip}
+## Clinical Relevance
+
+Interactions help us:
+
+- **Personalize treatment:** Identify which patients benefit most (or least)
+  from an intervention
+- **Understand mechanisms:** Discover biological or behavioral factors that
+  amplify or reduce effects
+- **Avoid misleading conclusions:** A pooled (average) effect may hide
+  important subgroup differences
+
+**Example:** A drug may be highly effective in younger patients but ineffective
+(or even harmful) in older patients. Reporting only the average effect across
+all ages would be misleading.
+:::
+
+## How to Detect Interaction
+
+::: {.callout-note}
+## Statistical Approaches
+
+1. **Stratified analysis:** Fit separate models within each subgroup and
+   compare the effect estimates
+2. **Regression with interaction term:** Include a product term (e.g.,
+   X × Z) in the model; test if the coefficient is significant
+3. **Visual inspection:** Plot the relationship for each subgroup; look for
+   different slopes or patterns
+
+**Key point:** A statistically significant interaction term (p < 0.05) provides
+evidence that the effect differs across subgroups.
+:::
+
+---
+
+# Example 1: FEV1 and Smoking in COPD Patients
+
+## Study Background
+
+A study examined whether smoking status (current/recent/former vs non-smoker)
+is associated with FEV1 (forced expiratory volume in one second, a measure of
+lung function) in patients with COPD. Age (≥65 vs <65 years) was also recorded.
+
+- **Sample:** 200 patients randomly selected from a clinical practice
+- **Exposure:** Smoking status (1 = current/recent/former smoker; 0 =
+  non-smoker)
+- **Outcome:** FEV1 (liters)
+- **Potential effect modifier:** Age (1 = ≥65 years; 0 = <65 years)
+
+::: {.callout-note}
+## Clinical Question
+
+Does the effect of smoking on lung function differ by age? We expect smokers
+to have lower FEV1, but is this effect stronger in older or younger COPD
+patients?
+:::
+
+## Data Dictionary
+
+| Variable | Description | Coding |
+|:---------|:------------|:-------|
+| `FEV1` | Forced expiratory volume in 1 second | Liters (continuous); higher = better |
+| `SMOKING` | Patient smoking status | 1 = Current/recent/former smoker; 0 = Non-smoker |
+| `AGE65` | Patient age group | 1 = Age ≥65 years; 0 = Age <65 years |
+
+: FEV1 Study Variables {.striped .hover}
+
+## Loading and Examining the Data
+
+```{r load-fev1-data}
+# Load the FEV1 smoking dataset
+load(url("https://www.duke.edu/~sgrambow/crp241data/fev1_smoking.RData"))
+
+# Examine structure
+str(fsdata)
+
+# Summary statistics
+summary(fsdata)
+```
+
+::: {.callout-note}
+## Quick Check
+
+- 200 observations
+- FEV1 is continuous (liters)
+- SMOKING and AGE65 are binary (0/1)
+- No missing values (if all variables show 200 obs)
+:::
+
+```{r create-age-subsets}
+# Create subsets by age group for stratified analyses
+old   <- subset(fsdata, AGE65 == 1)
+young <- subset(fsdata, AGE65 == 0)
+```
+
+## Exploratory Summaries
+
+```{r fev1-by-age}
+# FEV1 by age group
+by(fsdata$FEV1, fsdata$AGE65, summary)
+```
+
+::: {.callout-tip}
+## Clinical Interpretation
+
+Compare mean FEV1 for age <65 vs ≥65. Expect older patients to have lower FEV1
+due to age-related lung function decline.
+:::
+
+```{r fev1-by-smoking}
+# FEV1 by smoking status
+by(fsdata$FEV1, fsdata$SMOKING, summary)
+```
+
+::: {.callout-tip}
+## Clinical Interpretation
+
+Compare mean FEV1 for smokers vs non-smokers. Expect smokers to have lower FEV1
+because smoking damages airways and lung tissue.
+:::
+
+## Analysis 1: Overall Smoking Effect (Ignoring Age)
+
+First, let's test if FEV1 differs by smoking status in the entire cohort,
+ignoring age.
+
+```{r overall-ttest}
+# Two-sample t-test
+t.test(fsdata$FEV1 ~ fsdata$SMOKING, var.equal = TRUE)
+
+# Difference in means
+3.233291 - 3.920575
+```
+
+::: {.callout-note}
+## Interpretation
+
+- **Mean FEV1:** Non-smokers ~3.92 L; Smokers ~3.23 L
+- **Difference:** Non-smokers have ~0.69 L higher FEV1
+- **p-value:** Check if difference is statistically significant (p < 0.05)
+
+**Clinical takeaway:** Smoking is associated with reduced lung function in
+COPD patients. However, this pooled analysis does not tell us if the effect
+differs by age.
+:::
+
+## Analysis 2: Stratified t-Tests by Age
+
+Now let's examine the smoking effect separately in each age group.
+
+### Among Age <65 Years
+
+```{r young-summaries}
+# Summary by smoking status in younger patients
+by(young$FEV1, young$SMOKING, summary)
+```
+
+```{r young-ttest}
+# Two-sample t-test among younger patients
+t.test(young$FEV1 ~ young$SMOKING, var.equal = TRUE)
+
+# Difference in means
+3.604099 - 3.961962
+```
+
+::: {.callout-note}
+## Interpretation
+
+- **Difference in means:** ~0.36 L (non-smokers higher)
+- **Clinical takeaway:** Among younger COPD patients, smoking is associated
+  with a modest reduction in FEV1.
+:::
+
+### Among Age ≥65 Years
+
+```{r old-summaries}
+# Summary by smoking status in older patients
+by(old$FEV1, old$SMOKING, summary)
+```
+
+```{r old-ttest}
+# Two-sample t-test among older patients
+t.test(old$FEV1 ~ old$SMOKING, var.equal = TRUE)
+
+# Difference in means
+2.862483 - 3.879188
+```
+
+::: {.callout-note}
+## Interpretation
+
+- **Difference in means:** ~1.02 L (non-smokers higher)
+- **Clinical takeaway:** Among older COPD patients, smoking is associated with
+  a much larger reduction in FEV1 (nearly 3× the effect seen in younger
+  patients).
+:::
+
+::: {.callout-important}
+## Key Finding: Evidence of Interaction
+
+The smoking effect differs substantially by age:
+
+- **Younger patients:** ~0.36 L difference
+- **Older patients:** ~1.02 L difference
+
+This suggests **age modifies** the smoking effect. Let's test this formally
+with a regression interaction term.
+:::
+
+## Analysis 3: Regression with Interaction Term
+
+We can formally test for interaction by including a product term
+(`SMOKING × AGE65`) in the regression model.
+
+```{r interaction-model}
+# Fit model with interaction term
+ifit <- lm(FEV1 ~ SMOKING + AGE65 + SMOKING*AGE65, data = fsdata)
+summary(ifit)
+```
+
+::: {.callout-note}
+## Interpreting the Interaction Model
+
+**Key coefficient:** `SMOKING:AGE65` (the interaction term)
+
+- **If p < 0.05:** The smoking effect differs significantly by age (interaction
+  is present)
+- **If p ≥ 0.05:** No strong evidence that the smoking effect differs by age
+
+**Coefficients interpretation:**
+
+- **Intercept:** Mean FEV1 for non-smokers age <65
+- **SMOKING:** Smoking effect among younger patients (age <65)
+- **AGE65:** Age effect among non-smokers
+- **SMOKING:AGE65:** Additional smoking effect in older patients (how much
+  larger the smoking effect is in age ≥65 compared to age <65)
+:::
+
+::: {.callout-tip}
+## Clinical Interpretation
+
+If the interaction is significant:
+
+- **Report stratified results:** Present smoking effects separately for each
+  age group (as we did in Analysis 2)
+- **Avoid pooled estimates:** The overall effect (Analysis 1) masks important
+  age differences
+- **Clinical implication:** Smoking's impact on lung function is particularly
+  severe in older COPD patients. Smoking cessation interventions may be
+  especially beneficial for this subgroup.
+:::
+
+## Analysis 4: Stratified Regressions
+
+Let's fit separate regressions within each age group. This mirrors the t-tests
+but provides regression output (coefficients, confidence intervals, R-squared).
+
+### Among Age <65 Years
+
+```{r young-regression}
+# Regression among younger patients
+yfit <- lm(FEV1 ~ SMOKING, data = young)
+summary(yfit)
+confint(yfit)
+```
+
+::: {.callout-note}
+## Interpretation
+
+- **Slope (SMOKING):** Change in mean FEV1 for smokers vs non-smokers
+- **95% CI:** Uncertainty around the estimate
+- **Should match:** t-test result from Analysis 2a
+:::
+
+### Among Age ≥65 Years
+
+```{r old-regression}
+# Regression among older patients
+ofit <- lm(FEV1 ~ SMOKING, data = old)
+summary(ofit)
+confint(ofit)
+```
+
+::: {.callout-note}
+## Interpretation
+
+- **Slope (SMOKING):** Change in mean FEV1 for smokers vs non-smokers in older
+  patients
+- **Compare to younger patients:** This slope should be about 3× larger,
+  confirming the interaction
+:::
+
+## Analysis 5: Pooled Regression (No Age Adjustment)
+
+For comparison, here's the overall smoking effect ignoring age (matches
+Analysis 1).
+
+```{r pooled-regression}
+# Regression ignoring age
+ufit <- lm(FEV1 ~ SMOKING, data = fsdata)
+summary(ufit)
+confint(ufit)
+```
+
+::: {.callout-warning}
+## Important Note
+
+This pooled estimate averages the smoking effect across age groups. If
+interaction is present, this average can be misleading. Always check for
+interaction before reporting a pooled effect!
+:::
+
+---
+
+# Example 2: Birth Weight and Mother's Age
+
+## Study Background
+
+A study at Baystate Medical Center, Springfield, Massachusetts, examined
+variables related to the likelihood of a mother giving birth to a low birth
+weight baby (defined as <2500 grams). Low birth weight is a risk factor for
+infant morbidity and mortality.
+
+- **Sample:** 189 mothers randomly selected
+- **Exposure:** Mother's age during pregnancy (years)
+- **Outcome:** Baby's birth weight (grams)
+- **Potential effect modifier:** Maternal smoking during pregnancy (1 = smoker;
+  0 = non-smoker)
+
+::: {.callout-note}
+## Clinical Question
+
+Does maternal age affect birth weight? And does this relationship differ
+between mothers who smoke and those who do not?
+:::
+
+## Data Dictionary
+
+| Variable | Description | Coding |
+|:---------|:------------|:-------|
+| `bwt` | Birth weight of baby | Grams (continuous); higher = better |
+| `age` | Age of mother during pregnancy | Years (continuous) |
+| `smoke` | Smoking status of mother during pregnancy | 1 = Smoker; 0 = Non-smoker |
+
+: Birth Weight Study Variables {.striped .hover}
+
+## Loading the Data
+
+```{r load-bwt-data}
+# Load the birth weight dataset
+load(url("https://www.duke.edu/~sgrambow/crp241data/bwdata.RData"))
+```
+
+## Question 1: Association Between Age and Birth Weight?
+
+Is there evidence that maternal age is associated with birth weight (ignoring
+smoking status)?
+
+```{r bwt-age-regression}
+# Simple linear regression: birth weight ~ age
+fit1 <- lm(bwt ~ age, data = bwdata)
+summary(fit1)
+```
+
+::: {.callout-note}
+## Interpretation
+
+- **Slope (age):** Change in birth weight (grams) per 1-year increase in
+  maternal age
+- **p-value:** Is this association statistically significant?
+- **Clinical context:** Biological plausibility? Older mothers may have more
+  resources and prenatal care, or conversely, may face age-related pregnancy
+  complications.
+:::
+
+## Question 2: Visualize the Relationship
+
+```{r bwt-age-plot, fig.width=8, fig.height=6}
+# Scatterplot with fitted regression line
+plot(bwdata$age, bwdata$bwt,
+     xlab = 'Mother\'s Age During Pregnancy (years)',
+     ylab = 'Baby\'s Birth Weight (grams)',
+     cex = 2,
+     main = 'Birth Weight vs. Maternal Age (Overall)')
+abline(fit1, lwd = 3)
+```
+
+::: {.callout-tip}
+## Visual Interpretation
+
+- **Scatter:** Shows variability in birth weight at each age
+- **Line slope:** Direction and strength of the association
+- **Clinical check:** Does the relationship look linear? Any outliers?
+:::
+
+## Question 3: Does Smoking Modify the Age-Birth Weight Relationship?
+
+Test for interaction by including a product term (`age × smoke`).
+
+```{r bwt-interaction-model}
+# Regression with interaction term
+fit2 <- lm(bwt ~ age + smoke + age*smoke, data = bwdata)
+summary(fit2)
+```
+
+::: {.callout-important}
+## Interpreting the Interaction
+
+**Key coefficient:** `age:smoke` (the interaction term)
+
+- **If p < 0.05:** The effect of maternal age on birth weight differs
+  significantly between smokers and non-smokers
+- **If p ≥ 0.05:** No strong evidence of effect modification by smoking
+
+**Clinical interpretation:** If significant, maternal age affects birth weight
+differently in mothers who smoke vs those who do not. We should report
+age-specific slopes for each smoking group.
+:::
+
+## Question 4: Visualize Effect Modification
+
+Create separate regression lines for smokers and non-smokers to show how the
+relationship differs.
+
+```{r create-smoking-subsets}
+# Subset by smoking status
+smoker    <- subset(bwdata, smoke == 1)
+nonsmoker <- subset(bwdata, smoke == 0)
+```
+
+```{r stratified-regressions}
+# Regression among smokers
+fit3 <- lm(bwt ~ age, data = smoker)
+summary(fit3)
+confint(fit3)
+```
+
+::: {.callout-note}
+## Interpretation (Smokers)
+
+- **Slope (age):** Change in birth weight per 1-year increase in maternal age
+  **among mothers who smoke**
+:::
+
+```{r nonsmoker-regression}
+# Regression among non-smokers
+fit4 <- lm(bwt ~ age, data = nonsmoker)
+summary(fit4)
+confint(fit4)
+```
+
+::: {.callout-note}
+## Interpretation (Non-Smokers)
+
+- **Slope (age):** Change in birth weight per 1-year increase in maternal age
+  **among mothers who do not smoke**
+- **Compare slopes:** Are they similar or different?
+:::
+
+```{r bwt-interaction-plot, fig.width=8, fig.height=6}
+# Scatterplot with separate lines for smokers and non-smokers
+plot(nonsmoker$age, nonsmoker$bwt,
+     xlab = 'Mother\'s Age During Pregnancy (years)',
+     ylab = 'Baby\'s Birth Weight (grams)',
+     col = 'royalblue', cex = 2,
+     main = 'Birth Weight vs. Maternal Age by Smoking Status')
+points(smoker$age, smoker$bwt,
+       col = 'sienna3', pch = 19, cex = 2)
+abline(fit4, col = 'royalblue', lty = 2, lwd = 3)
+abline(fit3, col = 'sienna3', lwd = 3)
+legend('topleft', c('Smoker', 'Non-Smoker'),
+       col = c('sienna3', 'royalblue'),
+       lty = c(1, 2), lwd = 2, horiz = TRUE)
+```
+
+::: {.callout-tip}
+## Visual Interpretation
+
+- **Different slopes:** Evidence of interaction (effect modification)
+- **Parallel lines:** No interaction (same age effect in both groups)
+
+**Clinical example:** If the slope is steeper in non-smokers, older non-smoking
+mothers have heavier babies, but this benefit is reduced or absent in mothers
+who smoke. Smoking may blunt the positive effect of maternal age on fetal
+growth.
+:::
+
+---
+
+# Summary and Key Takeaways {.unnumbered}
+
+## What is Interaction?
+
+::: {.callout-note icon=false}
+## Key Points
+
+- **Interaction (effect modification):** The effect of one variable on an
+  outcome depends on the level of another variable
+- **Example:** Smoking's effect on lung function differs by age; maternal age's
+  effect on birth weight differs by smoking status
+- **Why it matters:** Pooled (average) effects can mask important subgroup
+  differences
+:::
+
+## How to Detect Interaction
+
+::: {.callout-note icon=false}
+## Key Points
+
+1. **Stratified analysis:** Fit separate models in each subgroup and compare
+   effect estimates
+2. **Regression with interaction term:** Include a product term (X × Z); test
+   if the coefficient is significant (p < 0.05)
+3. **Visualization:** Plot the relationship for each subgroup; look for
+   different slopes
+
+**Rule of thumb:** If the interaction term is significant, report stratified
+results. Do not rely on the pooled estimate.
+:::
+
+## Clinical Interpretation
+
+::: {.callout-note icon=false}
+## Key Points
+
+**Example 1: FEV1 and Smoking in COPD**
+
+- Smoking's impact on lung function is much larger in older patients (~1.02 L)
+  than younger patients (~0.36 L)
+- **Clinical implication:** Smoking cessation is especially critical for older
+  COPD patients
+
+**Example 2: Birth Weight and Maternal Age**
+
+- The effect of maternal age on birth weight may differ by smoking status
+- **Clinical implication:** Smoking may reduce the benefit of older maternal
+  age on fetal growth. Smoking cessation during pregnancy is vital.
+:::
+
+## When to Report Interaction
+
+::: {.callout-tip icon=false}
+## Best Practices
+
+- **Always test for interaction** when you have a plausible effect modifier
+- **If interaction is significant (p < 0.05):**
+  - Report stratified results (group-specific effects)
+  - Visualize with separate lines or subgroup analyses
+  - Discuss clinical implications (which patients benefit most?)
+- **If interaction is not significant:**
+  - Report the main effect (pooled estimate)
+  - Mention that you tested for interaction and found no evidence
+- **Consider biological plausibility:** Not all statistical interactions are
+  clinically meaningful. Use clinical knowledge to interpret findings.
+:::
+
+---
+
+# Glossary {.unnumbered}
+
+- **Interaction (Effect Modification):** When the effect of one variable on an
+  outcome depends on the level of another variable.
+- **Stratified Analysis:** Analyzing the relationship separately within levels
+  of a third variable (e.g., age groups, smoking status).
+- **Interaction Term:** A product of two variables (e.g., X × Z) included in a
+  regression model to test for interaction.
+- **Main Effect:** The effect of a variable on the outcome, averaged across
+  levels of other variables (ignoring interaction).
+- **Subgroup Analysis:** Examining effects within specific patient subgroups to
+  identify who benefits most (or least) from an exposure or treatment.
+
+---
+
+::: {.callout-note icon=false}
+## Session Information
+
+This document was created using Quarto and R. Here's the session information
+for reproducibility:
+
+```{r session-info}
+sessionInfo()
+```
+:::
