@@ -75,3 +75,13 @@ Copilot should infer missing details from this file and the examples. Only ask f
 ## Reference (full details)
 
 If needed, see `.github/COPILOT_INSTRUCTIONS.md` for extended guidance, examples, and longer prompt templates.
+
+---
+
+## Using other VS Code agents
+
+If you or a colleague are using a GPT‑based agent extension instead of
+Copilot Chat, use the model‑agnostic instructions in `AGENTS.md` at the repo
+root. They mirror this file’s rules but avoid Copilot‑specific wording and
+can be pasted into an agent’s system prompt/config if project‑scoped files
+aren’t auto‑discovered.

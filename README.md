@@ -40,6 +40,8 @@ physician learners: short sentences, basic functions, and clinical context.
 - Top‑level scripts and tutorials created during demos
 - `tutorial-video-github-vs-code.md`: link to a recorded walkthrough (YouTube
   link placeholder)
+- `11-03-25_RScript-ANCOVA.R`: intentionally unmodified script for faculty to
+  practice the Copilot/AGENTS workflow on a fresh example
 
 ## Audience and style of the materials
 
@@ -100,6 +102,13 @@ Prerequisites
 Copilot takes care of file creation, edits, and running renders — you provide
 plain‑English prompts.
 
+## Using other VS Code agents
+
+If you (or a colleague) use a GPT‑based agent extension instead of Copilot
+Chat, see `AGENTS.md` at the repo root. It mirrors these rules without
+Copilot‑specific wording and can be auto‑discovered by some extensions or
+pasted into an agent’s system prompt/config.
+
 ## Quick start (with Copilot Chat)
 
 - Open an original script (e.g., `examples/...-original.R`) and say:
@@ -112,6 +121,21 @@ plain‑English prompts.
   “Render the tutorial now.”
 
 Copilot uses `.github/copilot-instructions.md` to do the rest.
+
+## Try it yourself: ANCOVA demo
+
+We purposely left `11-03-25_RScript-ANCOVA.R` unmodified so you can practice
+the workflow end‑to‑end:
+
+- Open `11-03-25_RScript-ANCOVA.R` and ask:
+  “Improve this R script per repo instructions. Don’t change logic. Save next
+  to it (drop -original).”
+- Then open the improved script and ask:
+  “Create the Quarto tutorial per repo instructions and save as
+  11-03-25_RScript-ANCOVA-tutorial.qmd.”
+- Optional: “Render the tutorial now.”
+
+Using a non‑Copilot agent? See `AGENTS.md` for the same prompts and rules.
 
 ## Render tutorials locally
 
