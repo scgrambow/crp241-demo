@@ -167,6 +167,12 @@ Notes
 See `tutorial-video-github-vs-code.md` for the YouTube link (placeholder until
 the upload is finalized).
 
+Note on interaction style
+
+- In the video, prompts to Copilot are dictated via the Wispr voice‑to‑text
+  app. Spoken instructions are transcribed and then sent to Copilot Chat. If
+  you hear speech rather than typing, that’s expected.
+
 ## License
 
 See `LICENSE` for terms. Educational/demo content — validate for your use.
