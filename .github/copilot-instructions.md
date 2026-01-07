@@ -2,6 +2,8 @@
 
 This repository defines house rules for improving R scripts and generating matching Quarto tutorials for a physician audience. Copilot Chat should follow these instructions when you ask to improve a script or create a tutorial.
 
+> **Note for non-Copilot users:** If you're using a different AI agent (e.g., GPT-based VS Code extensions), refer to `AGENTS.md` in the repo root for model-agnostic instructions.
+
 The canonical examples live in `examples/`:
 
 - `*-original.R`: starting point
@@ -9,6 +11,14 @@ The canonical examples live in `examples/`:
 - `*-tutorial.qmd`: rich Quarto tutorial
 
 Audience: physicians (not coders). Use basic functions, short sentences, and wrap text to ≤80 characters.
+
+---
+
+## Assumptions
+
+- R and Quarto are installed locally.
+- Required packages (`readr`, `dplyr`, `ggplot2`, `stats`) can be installed automatically by the script.
+- Copilot Chat is configured to auto-discover this file (default behavior in VS Code).
 
 ---
 
@@ -26,6 +36,10 @@ When the user asks to “improve this script” or “create the tutorial,” Co
 - Use numbered sections: Setup; Load data; Explore; Model/Test; Interpret/Conclude.
 - Precede each executable line or coherent block with a plain-English why/what comment.
 - After each result/plot, add a short statistical and a clinical interpretation.
+- Distinguish strictly between **sample** statistics and **population**
+  parameters in all phrasing.
+- Explicitly note the frequency of missing values (`NA`s) and explain how they
+  are handled (e.g., `na.rm = TRUE`, `use = "complete.obs"`).
 - Prefer base R + `readr`, `dplyr`, `ggplot2`, `stats` only.
 - Output filename: drop `-original` (e.g., `X-original.R` → `X.R`), else append `-improved.R`.
 
@@ -44,7 +58,8 @@ When the user asks to “improve this script” or “create the tutorial,” Co
   improved script. Use callouts generously:
   - `callout-note` for Learning Objectives, Interpretation, Key Points
   - `callout-tip` for Clinical Analogy/Clinical Interpretation/Practice
-  - `callout-important` for Critical/Key Teaching Points
+  - `callout-important` for Critical/Key Teaching Points OR **Programming/
+    Technical Notes** (e.g., handling missing data).
   - `callout-warning` for data cleaning and pitfalls
 - Use descriptive chunk labels and add figure sizes when helpful.
 - Use `knitr::kable()` for small summary tables; add captions and striped/hover table classes.
@@ -55,6 +70,8 @@ When the user asks to “improve this script” or “create the tutorial,” Co
 Acceptance checks
 
 - Improved script: header present; ≤80-char comments; one line/block explanation; stat+clinical interpretations; logic unchanged; numbered sections.
+- Data verification: confirm key summary statistics (e.g., means, counts of
+  missing values) match the actual dataset provided.
 - Tutorial: renders with left TOC and numbered sections; mirrored code; stat+clinical notes for outputs.
 - Tutorial styling: html uses theme cosmo, code tools on, code line numbers on, code folding off; tables have captions and striped/hover classes; callouts are used for objectives, key points, interpretation, clinical notes, warnings.
 - Package handling: scripts/tutorials auto-check for required packages and install only when missing; then load.
@@ -64,17 +81,18 @@ Acceptance checks
 
 ## Minimal prompts you can use
 
-- With the original script open: “Improve this R script per repo instructions. Don’t change logic. Save next to it (drop -original).”
-- With the improved script open: “Create the Quarto tutorial per repo instructions and save as <ROOT>-tutorial.qmd.”
-- To validate both: “Validate and polish per repo checks (≤80 chars, stat+clinical notes, renderable tutorial).”
+- With the original script open: "Improve this R script per repo instructions. Don't change logic. Save next to it (drop -original)."
+- With the improved script open: "Create the Quarto tutorial per repo instructions and save as <ROOT>-tutorial.qmd."
+- To validate both: "Validate and polish per repo checks (≤80 chars, stat+clinical notes, renderable tutorial)."
+- Optional: "Render the tutorial now and show me the output(s)."
 
 Copilot should infer missing details from this file and the examples. Only ask for clarifications if the script path or data source is ambiguous.
 
 ---
 
-## Reference (full details)
+## Reference (canonical examples)
 
-If needed, see `.github/COPILOT_INSTRUCTIONS.md` for extended guidance, examples, and longer prompt templates.
+For working examples, see `examples/10-27-25-confounding-RScript.R` and `examples/10-27-25-confounding-tutorial.qmd`.
 
 ---
 

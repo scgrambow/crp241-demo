@@ -1,0 +1,294 @@
+---
+title: "Change Scores and ANCOVA"
+subtitle: "CRP 241 Tutorial"
+author: "Duke University Clinical Research Training Program"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    code-fold: false
+    code-tools: true
+    code-line-numbers: true
+    theme: cosmo
+    embed-resources: true
+    number-sections: true
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+execute:
+  warning: false
+  message: false
+  echo: true
+---
+
+# Introduction {.unnumbered}
+
+::: {.callout-note icon=false}
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain the difference between paired (within-subject) analysis,
+  change scores, and ANCOVA
+- Fit and interpret paired t-tests, change-score t-tests, and ANCOVA
+- Assess the homogeneity-of-slopes assumption and when to include
+  an interaction
+- Communicate statistical and clinical interpretations for each output
+:::
+
+::: {.callout-tip}
+## Clinical Analogy
+
+Think of change scores as measuring each patient's "before-minus-after"
+progress. ANCOVA is like comparing groups at follow-up while "leveling the
+playing field" for different baselines.
+:::
+
+---
+
+# 1. Setup
+
+```{r setup-packages}
+# Check/install required packages so this tutorial runs anywhere
+needed <- c("PairedData", "HH", "readr", "dplyr", "ggplot2")
+for (p in needed) {
+  if (!requireNamespace(p, quietly = TRUE)) install.packages(p)
+  library(p, character.only = TRUE)
+}
+```
+
+::: {.callout-note}
+We use base R plus a few helper packages for paired plots and ANCOVA visuals.
+Install happens only if a package is missing.
+:::
+
+---
+
+# 2. Example: Cholesterol Paired Differences (DAY4 − DAY2)
+
+## Load and Explore
+
+```{r load-cholesterol}
+# Load ACS cholesterol dataset with repeated measures
+load(url("http://www.duke.edu/~sgrambow/crp241data/cholesterol-paired.RData"))
+# Data: cholesterol.paired with DAY2, DAY4, DAY14, DAY14MSNG
+```
+
+```{r paired-diff-sum}
+# Compute within-patient difference (DAY4 - DAY2)
+cholesterol.paired$paired.diff <- cholesterol.paired$DAY4 - cholesterol.paired$DAY2
+summary(cholesterol.paired$paired.diff)
+```
+
+::: {.callout-note}
+Stat: Center and spread summarize typical change and variability.
+Clinical: Positive means an early rise; negative suggests a decline post MI.
+:::
+
+## Visualize Differences
+
+```{r paired-hist, fig.width=7, fig.height=4}
+# Histogram for shape/outliers
+hist(cholesterol.paired$paired.diff, freq = FALSE,
+     main = "4 vs 2 Days: Cholesterol Differences",
+     ylab = "Density", xlab = "DAY4 - DAY2 (mg/dL)", col = "lightblue")
+```
+
+```{r paired-box, fig.width=5, fig.height=5}
+# Boxplot with points and mean overlay
+boxplot(cholesterol.paired$paired.diff,
+        main = "Paired Change (Day4 - Day2)", ylab = "Change (mg/dL)",
+        col = "sienna", range = 0)
+stripchart(cholesterol.paired$paired.diff, method = "jitter", pch = 16,
+           vertical = TRUE, add = TRUE)
+points(mean(cholesterol.paired$paired.diff), cex = 1.7, pch = 16, col = "orange")
+```
+
+::: {.callout-note}
+Interpretation (stat): Box and whiskers give distribution; orange dot is mean.
+Interpretation (clinical): Shows heterogeneity of early lipid response.
+:::
+
+## Paired Visuals
+
+```{r paired-plots, fig.width=6, fig.height=5}
+# PairedData McNeil/profile plots emphasize within-patient change
+pairs <- with(cholesterol.paired, paired(DAY2, DAY4))
+plot(pairs, type = "McNeil")
+plot(pairs, type = "profile")
+```
+
+::: {.callout-important}
+Key Teaching Point: Paired designs exploit within-subject correlation,
+boosting precision relative to two-sample methods that ignore pairing.
+:::
+
+## Paired t-Test
+
+```{r paired-ttest}
+# Two equivalent ways to run the paired analysis
+t.test(cholesterol.paired$DAY4, cholesterol.paired$DAY2, paired = TRUE)
+t.test(cholesterol.paired$paired.diff)
+```
+
+::: {.callout-note}
+Interpretation (stat): Tests whether mean change equals zero; CI shows range.
+Clinical: Significant change indicates a real short-term shift post MI.
+:::
+
+```{r naive-two-sample}
+# For contrast only: naive two-sample t-test (incorrect for paired data)
+t.test(cholesterol.paired$DAY4, cholesterol.paired$DAY2)
+```
+
+::: {.callout-warning}
+This ignores pairing and is less efficient; use only to illustrate why pairing
+matters.
+:::
+
+---
+
+# 3. Example: Acupuncture Study — Change Scores vs. ANCOVA
+
+## Load and Summarize
+
+```{r load-needle}
+# Load acupuncture dataset with baseline and 12-month scores
+load(url("http://www.duke.edu/~sgrambow/crp245data/needle.RData"))
+```
+
+```{r needle-summaries}
+# Quick summaries
+summary(needle$pk1); summary(needle$pk5); summary(needle$ChangeFrom.pk1)
+
+# Subset by treatment group for groupwise summaries
+Treat <- subset(needle, needle$fgroup == "Treat")
+Control <- subset(needle, needle$fgroup == "Control")
+
+# Summaries at baseline and 12 months
+summary(Treat$pk1); summary(Control$pk1)
+summary(Treat$pk5); summary(Control$pk5)
+summary(Treat$ChangeFrom.pk1); summary(Control$ChangeFrom.pk1)
+```
+
+::: {.callout-note}
+Interpretation (stat): Baseline comparability and follow-up changes by group.
+Clinical: Lower follow-up scores and larger negative changes indicate benefit.
+:::
+
+## Visual Checks
+
+```{r needle-plots, fig.width=7, fig.height=5}
+boxplot(pk1 ~ fgroup, data = needle,
+        main = "Baseline Score (pk1) by Group", ylab = "pk1 Severity")
+boxplot(pk5 ~ fgroup, data = needle,
+        main = "12-Month Score (pk5) by Group", ylab = "pk5 Severity")
+boxplot(ChangeFrom.pk1 ~ fgroup, data = needle,
+        main = "Change from Baseline to 12 Months", ylab = "pk1 - pk5 Change")
+```
+
+```{r needle-paired-plots, fig.width=6, fig.height=5}
+needle.pairs <- with(needle, paired(pk1, pk5))
+plot(needle.pairs, type = "McNeil")
+plot(needle.pairs, type = "profile")
+```
+
+::: {.callout-important}
+Key Point: Visuals help detect baseline imbalance and illustrate change
+trajectories before modeling.
+:::
+
+## Change Scores vs. ANCOVA
+
+```{r change-score-ttest}
+# Change-score comparison (Treat - Control)
+t.test(needle$ChangeFrom.pk1 ~ needle$fgroup, var.equal = TRUE)
+mean(Treat$ChangeFrom.pk1, na.rm = TRUE) - mean(Control$ChangeFrom.pk1, na.rm = TRUE)
+```
+
+```{r needle-change-kable}
+# Summarize change by group in a small table
+chg_tbl <- data.frame(
+  Group = c("Control", "Treat"),
+  N = c(sum(!is.na(Control$ChangeFrom.pk1)), sum(!is.na(Treat$ChangeFrom.pk1))),
+  Mean_Change = c(mean(Control$ChangeFrom.pk1, na.rm = TRUE),
+                  mean(Treat$ChangeFrom.pk1, na.rm = TRUE)),
+  SD_Change = c(sd(Control$ChangeFrom.pk1, na.rm = TRUE),
+                sd(Treat$ChangeFrom.pk1, na.rm = TRUE))
+)
+
+knitr::kable(
+  chg_tbl,
+  digits = 2,
+  caption = "Change from Baseline (pk1 - pk5) by Group"
+)
+```
+
+```{r slr-unadjusted}
+# Unadjusted follow-up comparison via SLR
+lm.slr <- lm(needle$pk5 ~ needle$group)
+summary(lm.slr); confint(lm.slr)
+```
+
+```{r ancova-baseline}
+# ANCOVA adjusting for baseline severity
+lm.ancova <- lm(needle$pk5 ~ needle$pk1 + needle$group)
+summary(lm.ancova); confint(lm.ancova)
+```
+
+```{r ancova-change-outcome}
+# Equivalent perspective: change score outcome with baseline and group
+lm.ancova <- lm(needle$ChangeFrom.pk1 ~ needle$pk1 + needle$group)
+summary(lm.ancova); confint(lm.ancova)
+```
+
+```{r interaction-model}
+# Interaction model checks homogeneity-of-slopes (parallel lines)
+lm.mlr <- lm(needle$pk5 ~ needle$pk1 + needle$group + needle$pk1 * needle$group)
+summary(lm.mlr)
+```
+
+::: {.callout-note}
+Interpretation (stat): Group coefficient in ANCOVA is the adjusted treatment
+effect. A significant interaction suggests the treatment effect varies by
+baseline severity.
+Clinical: Use adjusted estimates to report treatment benefit; note if effect
+is stronger at certain baseline levels.
+:::
+
+## Visual Diagnostics
+
+```{r ancova-plots, fig.width=7, fig.height=5}
+ancovaplot(pk5 ~ pk1 + fgroup, data = needle)
+ancovaplot(pk5 ~ pk1 * fgroup, data = needle)
+complete.needle <- needle[complete.cases(needle), ]
+ancovaplot(pk5 ~ fgroup, x = pk1, data = complete.needle)
+```
+
+::: {.callout-warning}
+Assumption Check: Standard ANCOVA assumes parallel slopes across groups.
+Use the interaction test and the *pk1 × group* plot to assess this.
+:::
+
+---
+
+# 4. Key Takeaways {.unnumbered}
+
+::: {.callout-note}
+- Paired analysis uses within-patient correlation to improve precision.
+- Change score vs. ANCOVA often agree under standard assumptions; ANCOVA
+  adjusts follow-up for baseline.
+- Include an interaction when slopes differ; interpret treatment effect by
+  baseline level if non-parallel.
+:::
+
+---
+
+# 5. Session Info {.unnumbered}
+
+```{r session-info}
+sessionInfo()
+```

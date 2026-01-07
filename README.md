@@ -26,22 +26,35 @@ physician learners: short sentences, basic functions, and clinical context.
 - The examples come from CRP 241; you can adapt the same process to your
   own course materials.
 
-## What’s inside
+## What's inside
 
 - examples/
   - `*-original.R`: starting script
   - `*.R`: improved, documented script (logic unchanged)
   - `*-tutorial.qmd`: rich Quarto tutorial (HTML + PDF)
 - .github/
-  - `copilot-instructions.md`: house rules Copilot uses to improve scripts and
-    generate tutorials (auto‑discovered by Copilot Chat)
-  - `ISSUE_TEMPLATE/improve_r_script.yml`: optional issue form to request an
-    improved script + tutorial
-- Top‑level scripts and tutorials created during demos
-- `tutorial-video-github-vs-code.md`: link to a recorded walkthrough (YouTube
-  link placeholder)
-- `11-03-25_RScript-ANCOVA.R`: intentionally unmodified script for faculty to
-  practice the Copilot/AGENTS workflow on a fresh example
+  - `copilot-instructions.md`: house rules for GitHub Copilot Chat (auto-discovered)
+- `AGENTS.md`: model-agnostic version of the instructions for non-Copilot AI agents
+- Issue templates in `.github/ISSUE_TEMPLATE/` for requesting improved scripts
+- Top-level scripts and tutorials created during demos
+- `tutorial-video-github-vs-code.md`: link to a recorded walkthrough
+- `11-03-25_RScript-ANCOVA.R`: intentionally unmodified script for practice
+
+## AI Agent Instructions (Why Two Files?)
+
+This repository includes **two instruction files** that mirror each other in content but serve different tools:
+
+1. **`.github/copilot-instructions.md`** — Auto-discovered by GitHub Copilot Chat
+   - Uses Copilot-specific language ("Copilot should...")
+   - Automatically loaded when you use Copilot Chat in this workspace
+   - Recommended for users with GitHub Copilot
+
+2. **`AGENTS.md`** — Model-agnostic version for other AI coding assistants
+   - Uses generic language ("the agent should...")
+   - Can be referenced by GPT-based VS Code extensions or other AI tools
+   - Can be pasted into system prompts if your agent doesn't auto-discover files
+
+**Why both?** To maximize accessibility for faculty using different AI tools while maintaining a single source of truth for the workflow. Both files define the same two-step process (improve script → generate tutorial) but target different audiences.
 
 ## Audience and style of the materials
 
@@ -102,40 +115,47 @@ Prerequisites
 Copilot takes care of file creation, edits, and running renders — you provide
 plain‑English prompts.
 
-## Using other VS Code agents
-
-If you (or a colleague) use a GPT‑based agent extension instead of Copilot
-Chat, see `AGENTS.md` at the repo root. It mirrors these rules without
-Copilot‑specific wording and can be auto‑discovered by some extensions or
-pasted into an agent’s system prompt/config.
-
 ## Quick start (with Copilot Chat)
 
-- Open an original script (e.g., `examples/...-original.R`) and say:
-  “Improve this R script per repo instructions. Don’t change logic. Save next
-  to it (drop -original).”
-- Then open the improved script and say:
-  “Create the Quarto tutorial per repo instructions and save as
-  <ROOT>-tutorial.qmd.”
-- Ask Copilot to render it for you:
-  “Render the tutorial now.”
+Copilot Chat automatically uses `.github/copilot-instructions.md` when you're in this workspace.
 
-Copilot uses `.github/copilot-instructions.md` to do the rest.
+- Open an original script (e.g., `examples/...-original.R`) and say:
+  "Improve this R script per repo instructions. Don't change logic. Save next
+  to it (drop -original)."
+- Then open the improved script and say:
+  "Create the Quarto tutorial per repo instructions and save as
+  <ROOT>-tutorial.qmd."
+- Ask Copilot to render it for you:
+  "Render the tutorial now."
+
+## Quick start (with other AI agents)
+
+If you're using a different AI coding assistant:
+
+1. Point your agent to `AGENTS.md` (if it supports project-scoped instruction files)
+2. Or copy the content from `AGENTS.md` into your agent's system prompt/config
+3. Use the same natural language prompts as above
+
+The workflow is identical — only the discovery mechanism differs.
 
 ## Try it yourself: ANCOVA demo
 
 We purposely left `11-03-25_RScript-ANCOVA.R` unmodified so you can practice
-the workflow end‑to‑end:
+the workflow end-to-end:
 
-- Open `11-03-25_RScript-ANCOVA.R` and ask:
-  “Improve this R script per repo instructions. Don’t change logic. Save next
-  to it (drop -original).”
-- Then open the improved script and ask:
-  “Create the Quarto tutorial per repo instructions and save as
-  11-03-25_RScript-ANCOVA-tutorial.qmd.”
-- Optional: “Render the tutorial now.”
+**With Copilot Chat:**
+- Open `11-03-25_RScript-ANCOVA.R` and say:
+  "Improve this R script per repo instructions. Don't change logic. Save next
+  to it (drop -original)."
+- Then open the improved script and say:
+  "Create the Quarto tutorial per repo instructions and save as
+  11-03-25_RScript-ANCOVA-tutorial.qmd."
+- Optional: "Render the tutorial now."
 
-Using a non‑Copilot agent? See `AGENTS.md` for the same prompts and rules.
+**With other agents:**
+- Ensure your agent has loaded `AGENTS.md` (or paste its content into your
+  agent's system prompt)
+- Use the same prompts as above
 
 ## Render tutorials locally
 
